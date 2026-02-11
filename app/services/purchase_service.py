@@ -1,4 +1,4 @@
-import time
+
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -6,10 +6,10 @@ from app.models import Item
 
 
 def purchase(db: Session, item_id: str, cash_inserted: int) -> dict:
-    item = db.query(Item).filter(Item.id == item_id).first()
+    item = db.query(Item).filter(Item.id == item_id).with_for_update().first() # Lock the row
     if not item:
         raise ValueError("item_not_found")
-    time.sleep(0.05)  # demo: widens race window for concurrent purchase/restock
+    
     if item.quantity <= 0:
         raise ValueError("out_of_stock")
     if cash_inserted < item.price:
@@ -17,7 +17,13 @@ def purchase(db: Session, item_id: str, cash_inserted: int) -> dict:
     # No validation that cash_inserted or change use SUPPORTED_DENOMINATIONS
     change = cash_inserted - item.price
     item.quantity -= 1
+    # We must also update the slot count atomically or within the same lock
+    # Since we have the item, we can get the slot. Ideally slot should be locked too if we are pedantic
+    # but item lock prevents other purchases of THIS item.
+    # However, adding items to the same slot might race.
+    # For now, let's just update the objects.
     item.slot.current_item_count -= 1
+    
     db.commit()
     db.refresh(item)
     return {

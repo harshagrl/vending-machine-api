@@ -22,3 +22,8 @@ app.include_router(purchase.router)
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/")
+def root():
+    return {"message": "Welcome to the Vending Machine API"}

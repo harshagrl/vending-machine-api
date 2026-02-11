@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
 from app.models import Slot
@@ -31,15 +31,17 @@ def delete_slot(db: Session, slot_id: str) -> None:
     slot = get_slot_by_id(db, slot_id)
     if not slot:
         raise ValueError("slot_not_found")
+    if slot.current_item_count > 0:
+        raise ValueError("slot_not_empty")  # New validation
     db.delete(slot)
     db.commit()
 
 
 def get_full_view(db: Session) -> list[SlotFullView]:
-    slots = db.query(Slot).all()
+    # Optimized query
+    slots = db.query(Slot).options(joinedload(Slot.items)).all()
     result = []
     for slot in slots:
-        # slot.items loaded per slot (N+1)
         items = [
             SlotFullViewItem(
                 id=item.id,
